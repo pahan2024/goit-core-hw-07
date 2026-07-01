@@ -1,9 +1,7 @@
 from collections import UserDict
 from datetime import datetime, timedelta
 
-# ==========================================
-# ДЕКОРАТОР ДЛЯ ОБРОБКИ ПОМИЛОК
-# ==========================================
+
 def input_error(func):
     def inner(*args, **kwargs):
         try:
@@ -14,12 +12,10 @@ def input_error(func):
             return "Enter user name and/or accurate data."
         except KeyError:
             return "Contact not found."
+
     return inner
 
 
-# ==========================================
-# КЛАСИ АДРЕСНОЇ КНИГИ (ВАШ КОД З ДЗ 6 + birthday)
-# ==========================================
 class Field:
     def __init__(self, value):
         self.value = value
@@ -106,35 +102,37 @@ class AddressBook(UserDict):
         upcoming_birthdays = []
         # Поточна дата
         today = datetime.now().date()
-        
+
         for record in self.data.values():
             if not record.birthday:
                 continue
-                
+
             birthday_date = record.birthday.value
             # Переносимо день народження на поточний рік
             birthday_this_year = birthday_date.replace(year=today.year)
-            
+
             # Якщо день народження вже пройшов цього року, перевіряємо наступний
             if birthday_this_year < today:
                 birthday_this_year = birthday_this_year.replace(year=today.year + 1)
-                
+
             # Перевіряємо інтервал у 7 днів включно з сьогоднішнім
             if today <= birthday_this_year <= today + timedelta(days=7):
                 congratulation_date = birthday_this_year
-                
+
                 # Перенесення привітання на понеділок, якщо день народження у вихідні
                 # 5 — субота, 6 — неділя
                 if congratulation_date.weekday() == 5:
                     congratulation_date += timedelta(days=2)
                 elif congratulation_date.weekday() == 6:
                     congratulation_date += timedelta(days=1)
-                    
-                upcoming_birthdays.append({
-                    "name": record.name.value,
-                    "birthday": congratulation_date.strftime("%d.%m.%Y")
-                })
-                
+
+                upcoming_birthdays.append(
+                    {
+                        "name": record.name.value,
+                        "birthday": congratulation_date.strftime("%d.%m.%Y"),
+                    }
+                )
+
         return upcoming_birthdays
 
     def __str__(self):
@@ -143,9 +141,6 @@ class AddressBook(UserDict):
         return "\n".join(str(record) for record in self.data.values())
 
 
-# ==========================================
-# ФУНКЦІЇ-ОБРОБНИКИ КОМАНД (ХЕНДЛЕРИ)
-# ==========================================
 def parse_input(user_input):
     if not user_input.strip():
         return "", []
@@ -222,16 +217,13 @@ def birthdays(args, book: AddressBook):
     upcoming = book.get_upcoming_birthdays()
     if not upcoming:
         return "No upcoming birthdays in the next 7 days."
-    
+
     result = "Upcoming birthdays:\n"
     for user in upcoming:
         result += f"{user['name']}: congratulate on {user['birthday']}\n"
     return result.strip()
 
 
-# ==========================================
-# ГОЛОВНИЙ ЦИКЛ ПРОГРАМИ
-# ==========================================
 def main():
     book = AddressBook()
     print("Welcome to the assistant bot!")
