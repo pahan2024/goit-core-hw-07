@@ -42,7 +42,7 @@
 1. Переконайтеся, що на вашому комп'ютері встановлено Python 3.8 або новішої версії.
 2. Склонуйте цей репозиторій:
    ```bash
-   git clone https://github.com
+   git clone https://github.com/pahan2024/goit-core-hw-07
    ```
 3. Перейдіть до папки проєкту:
    ```bash
@@ -50,7 +50,7 @@
    ```
 4. Запустіть головний скрипт програми:
    ```bash
-   python main.py
+   python bot.py
    ```
 
 ## 📝 Приклад взаємодії з ботом
@@ -69,7 +69,7 @@ Upcoming birthdays:
 John: congratulate on 06.07.2026 (автоматичне перенесення з неділі на понеділок)
 
 Enter a command: add Bob 12345
-Phone number must contain exactly 10 digits.
+Please provide all required arguments for this command (e.g. name, phone or date).
 
 Enter a command: exit
 Good bye!
