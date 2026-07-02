@@ -1,21 +1,25 @@
 from collections import UserDict
 from datetime import datetime, timedelta
 
-
+# ==========================================
+# ДЕКОРАТОР ДЛЯ ОБРОБКИ ПОМИЛОК
+# ==========================================
 def input_error(func):
     def inner(*args, **kwargs):
         try:
             return func(*args, **kwargs)
-        except ValueError as e:
-            return str(e)
-        except IndexError:
-            return "Enter user name and/or accurate data."
-        except KeyError:
+        # 1. Замість системної помилки розпаковки рядка/індексу видаємо зрозумілу інструкцію
+        except (ValueError, IndexError):
+            return "Please provide all required arguments for this command (e.g. name, phone or date)."
+        # 2. Перехоплюємо AttributeError, коли record є None, і виводимо зрозумілий текст
+        except AttributeError:
             return "Contact not found."
-
     return inner
 
 
+# ==========================================
+# КЛАСИ АДРЕСНОЇ КНИГИ
+# ==========================================
 class Field:
     def __init__(self, value):
         self.value = value
@@ -30,31 +34,27 @@ class Name(Field):
 
 class Phone(Field):
     def __init__(self, value):
-        # Валідація: рядок, що складається рівно з 10 цифр
         if not (isinstance(value, str) and value.isdigit() and len(value) == 10):
-            raise ValueError("Phone number must contain exactly 10 digits.")
+            raise ValueError
         super().__init__(value)
 
 
 class Birthday(Field):
     def __init__(self, value):
         try:
-            # Валідація та перетворення рядка на об'єкт datetime.date
-            valid_date = datetime.strptime(value, "%d.%m.%Y").date()
-            super().__init__(valid_date)
+            # Валідуємо формат, але зберігаємо в self.value саме РЯДОК, як вимагає критерій
+            datetime.strptime(value, "%d.%m.%Y")
+            super().__init__(value)
         except ValueError:
-            raise ValueError("Invalid date format. Use DD.MM.YYYY")
-
-    def __str__(self):
-        # Повертаємо у звичному текстовому форматі при виведенні через print
-        return self.value.strftime("%d.%m.%Y")
+            # Якщо формат неправильний, збуджуємо ValueError, який перехопить декоратор
+            raise ValueError
 
 
 class Record:
     def __init__(self, name):
         self.name = Name(name)
         self.phones = []
-        self.birthday = None  # Нове поле для дня народження
+        self.birthday = None
 
     def add_phone(self, phone_number):
         self.phones.append(Phone(phone_number))
@@ -67,7 +67,8 @@ class Record:
     def edit_phone(self, old_number, new_number):
         phone_to_edit = self.find_phone(old_number)
         if not phone_to_edit:
-            raise ValueError(f"Phone number {old_number} not found.")
+            # Викидаємо AttributeError, щоб його перехопив декоратор
+            raise AttributeError
         new_phone = Phone(new_number)
         phone_to_edit.value = new_phone.value
 
@@ -78,12 +79,10 @@ class Record:
         return None
 
     def add_birthday(self, birthday_str):
-        # Додає дату народження до контакту
         self.birthday = Birthday(birthday_str)
 
     def __str__(self):
-        # Адаптоване виведення рядка, якщо додано день народження
-        birthday_str = f", birthday: {self.birthday}" if self.birthday else ""
+        birthday_str = f", birthday: {self.birthday.value}" if self.birthday else ""
         return f"Contact name: {self.name.value}, phones: {'; '.join(p.value for p in self.phones)}{birthday_str}"
 
 
@@ -100,39 +99,32 @@ class AddressBook(UserDict):
 
     def get_upcoming_birthdays(self):
         upcoming_birthdays = []
-        # Поточна дата
         today = datetime.now().date()
-
+        
         for record in self.data.values():
             if not record.birthday:
                 continue
-
-            birthday_date = record.birthday.value
-            # Переносимо день народження на поточний рік
+                
+            # Конвертуємо рядок з self.birthday.value в об'єкт дати виключно для розрахунків
+            birthday_date = datetime.strptime(record.birthday.value, "%d.%m.%Y").date()
             birthday_this_year = birthday_date.replace(year=today.year)
-
-            # Якщо день народження вже пройшов цього року, перевіряємо наступний
+            
             if birthday_this_year < today:
                 birthday_this_year = birthday_this_year.replace(year=today.year + 1)
-
-            # Перевіряємо інтервал у 7 днів включно з сьогоднішнім
+                
             if today <= birthday_this_year <= today + timedelta(days=7):
                 congratulation_date = birthday_this_year
-
-                # Перенесення привітання на понеділок, якщо день народження у вихідні
-                # 5 — субота, 6 — неділя
+                
                 if congratulation_date.weekday() == 5:
                     congratulation_date += timedelta(days=2)
                 elif congratulation_date.weekday() == 6:
                     congratulation_date += timedelta(days=1)
-
-                upcoming_birthdays.append(
-                    {
-                        "name": record.name.value,
-                        "birthday": congratulation_date.strftime("%d.%m.%Y"),
-                    }
-                )
-
+                    
+                upcoming_birthdays.append({
+                    "name": record.name.value,
+                    "birthday": congratulation_date.strftime("%d.%m.%Y")
+                })
+                
         return upcoming_birthdays
 
     def __str__(self):
@@ -141,6 +133,9 @@ class AddressBook(UserDict):
         return "\n".join(str(record) for record in self.data.values())
 
 
+# ==========================================
+# ФУНКЦІЇ-ОБРОБНИКИ КОМАНД (ХЕНДЛЕРИ)
+# ==========================================
 def parse_input(user_input):
     if not user_input.strip():
         return "", []
@@ -167,21 +162,17 @@ def add_contact(args, book: AddressBook):
 def change_contact(args, book: AddressBook):
     name, old_phone, new_phone = args
     record = book.find(name)
-    if record:
-        record.edit_phone(old_phone, new_phone)
-        return "Contact updated."
-    else:
-        raise KeyError
+    # Жодних if/else. Якщо record є None, виклик edit_phone викличе AttributeError
+    record.edit_phone(old_phone, new_phone)
+    return "Contact updated."
 
 
 @input_error
 def show_phone(args, book: AddressBook):
     name = args[0]
     record = book.find(name)
-    if record:
-        return f"{name}'s phones: " + ", ".join(p.value for p in record.phones)
-    else:
-        raise KeyError
+    # Якщо record є None, звернення до .phones викличе AttributeError, який обробить декоратор
+    return f"{name}'s phones: " + ", ".join(p.value for p in record.phones)
 
 
 @input_error
@@ -193,23 +184,19 @@ def show_all(book: AddressBook):
 def add_birthday(args, book: AddressBook):
     name, birthday = args
     record = book.find(name)
-    if record:
-        record.add_birthday(birthday)
-        return f"Birthday added for {name}."
-    else:
-        raise KeyError
+    # Якщо record є None, викликається AttributeError
+    record.add_birthday(birthday)
+    return f"Birthday added for {name}."
 
 
 @input_error
 def show_birthday(args, book: AddressBook):
     name = args[0]
     record = book.find(name)
-    if record:
-        if record.birthday:
-            return f"{name}'s birthday is {record.birthday}"
-        return f"{name} doesn't have birthday info yet."
-    else:
-        raise KeyError
+    # Якщо record є None, отримаємо AttributeError. Якщо birthday є None, спрацює блок else
+    if record.birthday:
+        return f"{name}'s birthday is {record.birthday.value}"
+    return f"{name} doesn't have birthday info yet."
 
 
 @input_error
@@ -217,13 +204,16 @@ def birthdays(args, book: AddressBook):
     upcoming = book.get_upcoming_birthdays()
     if not upcoming:
         return "No upcoming birthdays in the next 7 days."
-
+    
     result = "Upcoming birthdays:\n"
     for user in upcoming:
         result += f"{user['name']}: congratulate on {user['birthday']}\n"
     return result.strip()
 
 
+# ==========================================
+# ГОЛОВНИЙ ЦИКЛ ПРОГРАМИ
+# ==========================================
 def main():
     book = AddressBook()
     print("Welcome to the assistant bot!")
